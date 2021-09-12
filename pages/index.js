@@ -14,7 +14,7 @@ const Index = (props) => {
         console.log("Full response in Index of getsubsurl", res.data);
         let confirmationUrl = res.data.split('admin')[1];
         console.log("Split data is ", confirmationUrl);
-        // props.redirect.dispatch(Redirect.Action.ADMIN_PATH, confirmationUrl);
+        props.redirect.dispatch(Redirect.Action.ADMIN_PATH, confirmationUrl);
       }
     ).catch(
       (error) => console.log("Error in Subscription App.js:", error));
