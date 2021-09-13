@@ -1,61 +1,9 @@
-// import "isomorphic-fetch";
-// import { gql } from "@apollo/client";
-// import { createClient } from "..";
-
-// export function RECURRING_CREATE(url) {
-//   return gql`
-//     mutation {
-//       appSubscriptionCreate(
-//           name: "Super Duper Plan"
-//           returnUrl: "${url}"
-//           test: true
-//           lineItems: [
-//           {
-//             plan: {
-//               appUsagePricingDetails: {
-//                   cappedAmount: { amount: 10, currencyCode: USD }
-//                   terms: "$1 for 1000 emails"
-//               }
-//             }
-//           }
-//           {
-//             plan: {
-//               appRecurringPricingDetails: {
-//                   price: { amount: 10, currencyCode: USD }
-//               }
-//             }
-//           }
-//           ]
-//         ) {
-//             userErrors {
-//               field
-//               message
-//             }
-//             confirmationUrl
-//             appSubscription {
-//               id
-//             }
-//         }
-//     }`;
-// }
-
-// export const getSubscriptionUrl = async (ctx) => {
-//   const { client } = ctx;
-//   // console.log("inside getSubscriptionURl",client);
-//   const confirmationUrl = await client
-//     .mutate({
-//       mutation: RECURRING_CREATE(process.env.HOMEPAGE)
-//     })
-//     .then(response => response.data.appSubscriptionCreate.confirmationUrl);
-//   console.log("Subscription worked with response url", confirmationUrl);
-//   return ctx.redirect(confirmationUrl);
-// };
-
 export const getSubscriptionUrl = async (
   accessToken,
   shop,
   returnUrl = process.env.HOST
 ) => {
+  console.log(accessToken,shop,returnUrl)
   const query = JSON.stringify({
     query: `mutation {
       appSubscriptionCreate(

@@ -6,9 +6,9 @@ import Shopify, { ApiVersion } from "@shopify/shopify-api";
 import Koa from "koa";
 import next from "next";
 import Router from "koa-router";
-import { createClient, getSubscriptionUrl } from './handlers'
-import { storeCallback, loadCallback, deleteCallback } from './database/sessionStorage'
-
+import { createClient, getSubscriptionUrl, testingQuery } from './handlers';
+import { storeCallback, loadCallback, deleteCallback } from './database/sessionStorage';
+import BillingModel from './database/models/billing';
 
 dotenv.config();
 // Initializing MongoDB Instance
@@ -82,6 +82,20 @@ app.prepare().then(async () => {
             console.log("Topic:", topic);
             console.log("Shop:", shop);
             console.log("Body:", body);
+            // body.app_subscription.status;
+            // Store data in Database. 
+            /*
+             Topic: APP_SUBSCRIPTIONS_UPDATE
+            Shop: shadow-clone-dev.myshopify.com
+            Body: {"app_subscription":{"admin_graphql_api_id":"gid:\/\/shopify\/AppSubscription\/23606624455","name":"Super Duper Plan","status":"CANCELLED","admin_graphql_api_shop_id":"gid:\/\/shopify\/Shop\/58492780743","created_at":"2021-09-13T01:44:07+05:30","updated_at":"2021-09-13T18:21:33+05:30"}}
+            Webhook processed, returned status code 200
+
+            Topic: APP_SUBSCRIPTIONS_UPDATE
+            Shop: shadow-clone-dev.myshopify.com
+            Body: {"app_subscription":{"admin_graphql_api_id":"gid:\/\/shopify\/AppSubscription\/23613407431","name":"Super Duper Plan","status":"ACTIVE","admin_graphql_api_shop_id":"gid:\/\/shopify\/Shop\/58492780743","created_at":"2021-09-13T18:21:09+05:30","updated_at":"2021-09-13T18:21:34+05:30"}}
+            Webhook processed, returned status code 200
+            */
+
           }
         });
 
@@ -135,7 +149,12 @@ app.prepare().then(async () => {
     "(/api/test)",
     async (ctx) => {
       console.log(ctx);
-      const response = await getSubscriptionUrl(ctx.accessToken, ctx.shop, process.env.HOMEPAGE);
+      var returnUrl = `https:\/\/${ctx.shop}\/admin\/apps\/${process.env.APPNAME}\/charge`
+      console.log("Return Url in API mid", returnUrl)
+      // shadow-clone-dev.myshopify.com https://shadow-clone-dev.myshopify.com/admin/apps/testingapp-96/
+      const response = await getSubscriptionUrl(ctx.accessToken, ctx.shop, returnUrl);
+      // const response = await testingQuery(ctx.accessToken, ctx.shop);
+
       ctx.res.statusCode = 200;
       ctx.body = response;
     });

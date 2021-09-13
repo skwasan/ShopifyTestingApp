@@ -38,7 +38,7 @@ async function loadCallback(id) {
 
 async function deleteCallback(id) {
     const loadedSession = await SessionSch.findOneAndDelete({ id: id });
-    // console.log("Delete Session", loadedSession);
+    console.log("Delete Session", loadedSession);
     return loadedSession;
 }
 
