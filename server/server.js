@@ -8,7 +8,7 @@ import next from "next";
 import Router from "koa-router";
 import { createClient, getSubscriptionUrl, testingQuery } from './handlers';
 import { storeCallback, loadCallback, deleteCallback } from './database/sessionStorage';
-import BillingModel from './database/models/billing';
+import billingModel from './database/models/billing';
 
 dotenv.config();
 // Initializing MongoDB Instance
@@ -81,21 +81,38 @@ app.prepare().then(async () => {
           webhookHandler: async (topic, shop, body) => {
             console.log("Topic:", topic);
             console.log("Shop:", shop);
-            console.log("Body:", body);
-            // body.app_subscription.status;
-            // Store data in Database. 
-            /*
-             Topic: APP_SUBSCRIPTIONS_UPDATE
-            Shop: shadow-clone-dev.myshopify.com
-            Body: {"app_subscription":{"admin_graphql_api_id":"gid:\/\/shopify\/AppSubscription\/23606624455","name":"Super Duper Plan","status":"CANCELLED","admin_graphql_api_shop_id":"gid:\/\/shopify\/Shop\/58492780743","created_at":"2021-09-13T01:44:07+05:30","updated_at":"2021-09-13T18:21:33+05:30"}}
-            Webhook processed, returned status code 200
+            console.log("Body:", body,);
+            var bodyData = JSON.parse(body);
+            console.log("BodyData", bodyData);
+        
 
-            Topic: APP_SUBSCRIPTIONS_UPDATE
-            Shop: shadow-clone-dev.myshopify.com
-            Body: {"app_subscription":{"admin_graphql_api_id":"gid:\/\/shopify\/AppSubscription\/23613407431","name":"Super Duper Plan","status":"ACTIVE","admin_graphql_api_shop_id":"gid:\/\/shopify\/Shop\/58492780743","created_at":"2021-09-13T18:21:09+05:30","updated_at":"2021-09-13T18:21:34+05:30"}}
-            Webhook processed, returned status code 200
-            */
-
+            var responseOfQuery = await testingQuery(accessToken, shop, bodyData.app_subscription.admin_graphql_api_id);
+            console.log("responseOfQuery",JSON.stringify(responseOfQuery));
+            // responseOfQuery = JSON.parse(responseOfQuery);
+            var dataObject = {
+              billingId: bodyData.app_subscription.admin_graphql_api_id,
+              shopId: bodyData.app_subscription.admin_graphql_api_shop_id,
+              shop: shop,
+              planName: responseOfQuery.data.node.name,
+              price: responseOfQuery.data.node.lineItems[0].plan.pricingDetails.price.amount,
+              currencyCode: responseOfQuery.data.node.lineItems[0].plan.pricingDetails.price.currencyCode,
+              type: responseOfQuery.data.node.__typename,
+              expires: responseOfQuery.data.node.currentPeriodEnd,
+              createdOn: responseOfQuery.data.node.createdAt,
+              // validity: responseOfQuery.data.node.name,
+              status: responseOfQuery.data.node.status,
+              test: responseOfQuery.data.node.test
+            }
+            
+            console.log("dataObject :",dataObject);
+              var responseToBilling = billingModel.findOneAndUpdate({ billingId: dataObject.billingId, shopId: dataObject.shopId}, dataObject, {
+                new: true,
+                upsert: true
+            }, function(error,value) {
+              if (error) console.log("Error in Billing Query at webhook:",error);
+              else  console.log("Value in Billing in Webhook is: ",value);
+            });
+            console.log("Response to Billing ",responseToBilling);
           }
         });
 

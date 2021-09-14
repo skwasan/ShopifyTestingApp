@@ -1,42 +1,31 @@
 export const testingQuery = async (
   accessToken,
   shop,
+  id
 ) => {
-  console.log(accessToken, shop)
+  console.log("Testing QUERY",accessToken, shop,id)
   const query = JSON.stringify({
     query: `query {
-      currentAppInstallation {
-        allSubscriptions(first: 2) {
-          edges {
-            node {
-              lineItems {
-                plan {
-                  pricingDetails {
-                    __typename
-                    ... on AppRecurringPricing {
-                      price {
-                        amount
-                        currencyCode
-                      }
-                    }
-                    ... on AppUsagePricing {
-                      balanceUsed {
-                        amount
-                        currencyCode
-                      }
-                      cappedAmount {
-                        amount
-                        currencyCode
-                      }
-                    }
+      node(id: "${id}") {
+        __typename
+        ... on AppSubscription {
+          createdAt
+          currentPeriodEnd
+          id
+          name
+          status
+          test
+          lineItems {
+            plan {
+              pricingDetails {
+                ... on AppRecurringPricing {
+                  interval
+                  price {
+                    amount
+                    currencyCode
                   }
                 }
               }
-              createdAt
-              id
-              name
-              status
-              test
             }
           }
         }
