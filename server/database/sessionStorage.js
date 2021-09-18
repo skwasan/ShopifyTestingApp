@@ -4,7 +4,7 @@ import { Session } from '@shopify/shopify-api/dist/auth/session';
 
 
 async function storeCallback(session) {
-    console.log("Store Session", session);
+    // console.log("Store Session", session);
     return await SessionSch.findOneAndUpdate({ shop:`${session.shop}` }, session, {
         new: true,
         upsert: true

@@ -9,7 +9,7 @@ import Router from "koa-router";
 import { createClient, getSubscriptionUrl, testingQuery } from './handlers';
 import { storeCallback, loadCallback, deleteCallback } from './database/sessionStorage';
 import billingModel from './database/models/billing';
-
+import UsageRecord from './database/models/usage'
 dotenv.config();
 // Initializing MongoDB Instance
 require("./database/connection");
@@ -58,7 +58,7 @@ app.prepare().then(async () => {
         // console.log("Client Created in CTX: \n", client);
 
         ACTIVE_SHOPIFY_SHOPS[shop] = scope;
-
+        // WEBHOOK:1
         const response = await Shopify.Webhooks.Registry.register({
           shop,
           accessToken,
@@ -73,6 +73,7 @@ app.prepare().then(async () => {
             `Failed to register APP_UNINSTALLED webhook: ${response.result}`
           );
         }
+        //WEBHOOK:2
         const subcriptionResponse = await Shopify.Webhooks.Registry.register({
           shop,
           accessToken,
@@ -84,10 +85,10 @@ app.prepare().then(async () => {
             console.log("Body:", body,);
             var bodyData = JSON.parse(body);
             console.log("BodyData", bodyData);
-        
+
 
             var responseOfQuery = await testingQuery(accessToken, shop, bodyData.app_subscription.admin_graphql_api_id);
-            console.log("responseOfQuery",JSON.stringify(responseOfQuery));
+            console.log("responseOfQuery", JSON.stringify(responseOfQuery));
             // responseOfQuery = JSON.parse(responseOfQuery);
             var dataObject = {
               billingId: bodyData.app_subscription.admin_graphql_api_id,
@@ -100,20 +101,81 @@ app.prepare().then(async () => {
               expires: responseOfQuery.data.node.currentPeriodEnd,
               createdOn: responseOfQuery.data.node.createdAt,
               // validity: responseOfQuery.data.node.name,
+              // Need to add Trial Days for functionality
               status: responseOfQuery.data.node.status,
               test: responseOfQuery.data.node.test
             }
-            
-            console.log("dataObject :",dataObject);
-              var responseToBilling = billingModel.findOneAndUpdate({ billingId: dataObject.billingId, shopId: dataObject.shopId}, dataObject, {
+
+            console.log("dataObject :", dataObject);
+            var responseToBilling = billingModel.findOneAndUpdate({ billingId: dataObject.billingId, shopId: dataObject.shopId }, dataObject, {
+              new: true,
+              upsert: true
+            }, function (error, value) {
+              if (error) console.log("Error in Billing Query at webhook:", error);
+              // else  console.log("Value in Billing in Webhook is: ",value);
+              else if (value.status === "ACTIVE") {
+                // Add plan check here
+                var usageQ = {
+                  shopId: value.shopId,
+                  subscriptionId: value.billingId,
+                  expired: false,
+                  credit: 5000,
+                  $push: {
+                    record: {
+                      "date": value.createdOn,
+                      "credit": 5000
+                    }
+                  },
+                }
+
+
+              }
+              else {
+                console.log("Plan is CANCELLED on :", value.subscriptionId)
+                var usageQ = {
+                  shopId: value.shopId,
+                  subscriptionId: value.billingId,
+                  expired: true,
+                  credit: 0,
+                }
+              }
+
+              var responseToUsageRecord = UsageRecord.findOneAndUpdate({ shopId: usageQ.shopId }, usageQ, {
                 new: true,
                 upsert: true
-            }, function(error,value) {
-              if (error) console.log("Error in Billing Query at webhook:",error);
-              else  console.log("Value in Billing in Webhook is: ",value);
+              }, function (error, value) {
+                if (error) console.log("Error in UsageRecord Query :", error)
+              });
+              console.log("responseToUsageRecord:", responseToUsageRecord)
+
             });
-            console.log("Response to Billing ",responseToBilling);
+            // console.log("responseToBilling:", responseToBilling);
+            // var expired = dataObject.status === "ACTIVE" ? false : true
+            // Query To upsert UsageRecord
+            // var usageQ = {
+            //   shopId: dataObject.shopId,
+            //   subscriptionId: dataObject.billingId,
+            //   expired: dataObject.status === "ACTIVE" ? false : true,
+            //   credit: 5000,
+            //   $push: {
+            //     record: {
+            //       "date": dataObject.createdOn,
+            //       "credit": 3000
+            //     }
+            //   },
+            // }
+            // var responseToUsageRecord = UsageRecord.findOneAndUpdate({ shopId: usageQ.shopId }, usageQ, {
+            //   new: true,
+            //   upsert: true
+            // }, function (error, value) {
+            //   if (error) console.log("Error in UsageRecord Query :", error)
+            // });
+            // console.log("responseToUsageRecord:", responseToUsageRecord)
+
           }
+
+          //
+
         });
 
         if (!subcriptionResponse.success) {
@@ -141,18 +203,7 @@ app.prepare().then(async () => {
       console.log(`Failed to process webhook: ${error}`);
     }
   });
-  //// Session Token Injection
-  // async function injectSession(ctx, next) {
-  //   const session = await Shopify.Utils.loadCurrentSession(ctx.req, ctx.res);
-  //   ctx.sessionFromToken = session;
-  //   if (session?.shop && session?.accessToken) {
-  //     const client = createClient(session.shop, session.accessToken);
-  //     ctx.myClient = client;
-  //     console.log("My CLient Created in ctx ", ctx);
-  //   }
-  //   return next();
-  // }
-  //
+
   router.post(
     "/graphql",
     verifyRequest({ returnHeader: true }),
