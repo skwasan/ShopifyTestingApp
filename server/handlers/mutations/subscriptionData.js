@@ -1,9 +1,9 @@
-export const testingQuery = async (
+export const subscriptionData = async (
   accessToken,
   shop,
   id
 ) => {
-  console.log("Testing QUERY",accessToken, shop,id)
+  // console.log("Testing QUERY",accessToken, shop,id)
   const query = JSON.stringify({
     query: `query {
       node(id: "${id}") {

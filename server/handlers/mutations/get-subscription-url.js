@@ -56,5 +56,6 @@ export const getSubscriptionUrl = async (
 
   const responseJson = await response.json();
   console.log("this is a response", responseJson);
-  return responseJson.data.appSubscriptionCreate.confirmationUrl;
+  // return responseJson.data.appSubscriptionCreate.confirmationUrl;
+  return responseJson;
 };

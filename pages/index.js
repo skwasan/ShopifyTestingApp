@@ -20,11 +20,29 @@ const Index = (props) => {
       (error) => console.log("Error in Subscription App.js:", error));
     // console.log("Button is clicked! ", response);
   }
+
+
+  const creditSubtract = (e) => {
+    e.persist();
+    // axios.get("/api/credit-subtract").then(
+    axios.get("/api/credit/123").then(
+      (res) => {
+        console.log("Full response in Index of credit-subtract", res.data);
+      }
+    ).catch(
+      (error) => console.log("Error in Subscription App.js:", error));
+    // console.log("Button is clicked! ", response);
+  }
+
+
   return (
     <Page>
       <Heading>Shopify app with Node and React 🎉</Heading>
       <Button onClick={handlesubmit}>
         Create Subscription
+      </Button>
+      <Button onClick={creditSubtract}>
+        create Description
       </Button>
     </Page>
   );

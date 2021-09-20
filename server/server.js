@@ -6,10 +6,10 @@ import Shopify, { ApiVersion } from "@shopify/shopify-api";
 import Koa from "koa";
 import next from "next";
 import Router from "koa-router";
-import { createClient, getSubscriptionUrl, testingQuery } from './handlers';
+import { createClient, getSubscriptionUrl, subscriptionData, shopDetails } from './handlers';
 import { storeCallback, loadCallback, deleteCallback } from './database/sessionStorage';
 import billingModel from './database/models/billing';
-import UsageRecord from './database/models/usage'
+import usageRecord from './database/models/usage'
 dotenv.config();
 // Initializing MongoDB Instance
 require("./database/connection");
@@ -49,17 +49,13 @@ app.prepare().then(async () => {
         // Access token and shop available in ctx.state.shopify
         const { shop, accessToken, scope } = ctx.state.shopify;
         const host = ctx.query.host;
-        const client = createClient(shop, accessToken);
-        // Need to change!!!
-        server.context.client = client;
         server.context.shop = shop;
         server.context.accessToken = accessToken;
-
-        // console.log("Client Created in CTX: \n", client);
+        server.context.shopId = await shopDetails(accessToken, shop);
 
         ACTIVE_SHOPIFY_SHOPS[shop] = scope;
         // WEBHOOK:1
-        const response = await Shopify.Webhooks.Registry.register({
+        const uninstallWebhook = await Shopify.Webhooks.Registry.register({
           shop,
           accessToken,
           path: "/webhooks",
@@ -68,13 +64,13 @@ app.prepare().then(async () => {
             delete ACTIVE_SHOPIFY_SHOPS[shop],
         });
 
-        if (!response.success) {
+        if (!uninstallWebhook.success) {
           console.log(
-            `Failed to register APP_UNINSTALLED webhook: ${response.result}`
+            `Failed to register APP_UNINSTALLED webhook: ${uninstallWebhook.result}`
           );
         }
         //WEBHOOK:2
-        const subcriptionResponse = await Shopify.Webhooks.Registry.register({
+        const subscriptionWebhook = await Shopify.Webhooks.Registry.register({
           shop,
           accessToken,
           path: "/webhooks",
@@ -87,11 +83,11 @@ app.prepare().then(async () => {
             console.log("BodyData", bodyData);
 
 
-            var responseOfQuery = await testingQuery(accessToken, shop, bodyData.app_subscription.admin_graphql_api_id);
+            var responseOfQuery = await subscriptionData(accessToken, shop, bodyData.app_subscription.admin_graphql_api_id);
             console.log("responseOfQuery", JSON.stringify(responseOfQuery));
             // responseOfQuery = JSON.parse(responseOfQuery);
             var dataObject = {
-              billingId: bodyData.app_subscription.admin_graphql_api_id,
+              subscriptionId: bodyData.app_subscription.admin_graphql_api_id,
               shopId: bodyData.app_subscription.admin_graphql_api_shop_id,
               shop: shop,
               planName: responseOfQuery.data.node.name,
@@ -107,7 +103,7 @@ app.prepare().then(async () => {
             }
 
             console.log("dataObject :", dataObject);
-            var responseToBilling = billingModel.findOneAndUpdate({ billingId: dataObject.billingId, shopId: dataObject.shopId }, dataObject, {
+            var responseToBilling = billingModel.findOneAndUpdate({ subscriptionId: dataObject.subscriptionId, shopId: dataObject.shopId }, dataObject, {
               new: true,
               upsert: true
             }, function (error, value) {
@@ -117,7 +113,7 @@ app.prepare().then(async () => {
                 // Add plan check here
                 var usageQ = {
                   shopId: value.shopId,
-                  subscriptionId: value.billingId,
+                  subscriptionId: value.subscriptionId,
                   expired: false,
                   credit: 5000,
                   $push: {
@@ -128,59 +124,32 @@ app.prepare().then(async () => {
                   },
                 }
 
-
               }
               else {
                 console.log("Plan is CANCELLED on :", value.subscriptionId)
                 var usageQ = {
                   shopId: value.shopId,
-                  subscriptionId: value.billingId,
+                  subscriptionId: value.subscriptionId,
                   expired: true,
                   credit: 0,
                 }
               }
 
-              var responseToUsageRecord = UsageRecord.findOneAndUpdate({ shopId: usageQ.shopId }, usageQ, {
+              var responseToUsageRecord = usageRecord.findOneAndUpdate({ shopId: usageQ.shopId }, usageQ, {
                 new: true,
                 upsert: true
               }, function (error, value) {
-                if (error) console.log("Error in UsageRecord Query :", error)
+                if (error) console.log("Error in usageRecord Query :", error)
               });
               console.log("responseToUsageRecord:", responseToUsageRecord)
 
             });
-            // console.log("responseToBilling:", responseToBilling);
-            // var expired = dataObject.status === "ACTIVE" ? false : true
-            // Query To upsert UsageRecord
-            // var usageQ = {
-            //   shopId: dataObject.shopId,
-            //   subscriptionId: dataObject.billingId,
-            //   expired: dataObject.status === "ACTIVE" ? false : true,
-            //   credit: 5000,
-            //   $push: {
-            //     record: {
-            //       "date": dataObject.createdOn,
-            //       "credit": 3000
-            //     }
-            //   },
-            // }
-            // var responseToUsageRecord = UsageRecord.findOneAndUpdate({ shopId: usageQ.shopId }, usageQ, {
-            //   new: true,
-            //   upsert: true
-            // }, function (error, value) {
-            //   if (error) console.log("Error in UsageRecord Query :", error)
-            // });
-            // console.log("responseToUsageRecord:", responseToUsageRecord)
-
           }
-
-          //
-
         });
 
-        if (!subcriptionResponse.success) {
+        if (!subscriptionWebhook.success) {
           console.log(
-            `Failed to register APP_UNINSTALLED webhook: ${response.result}`
+            `Failed to register subscription webhook: ${subscriptionWebhook.result}`
           );
         }
         // Redirect to app with shop parameter upon auth
@@ -212,20 +181,49 @@ app.prepare().then(async () => {
     }
   );
 
-
+  // Shop
   router.get(
     "(/api/test)",
     async (ctx) => {
-      console.log(ctx);
       var returnUrl = `https:\/\/${ctx.shop}\/admin\/apps\/${process.env.APPNAME}\/charge`
-      console.log("Return Url in API mid", returnUrl)
-      // shadow-clone-dev.myshopify.com https://shadow-clone-dev.myshopify.com/admin/apps/testingapp-96/
       const response = await getSubscriptionUrl(ctx.accessToken, ctx.shop, returnUrl);
-      // const response = await testingQuery(ctx.accessToken, ctx.shop);
-
+      var confirmationUrl = response.data.appSubscriptionCreate.confirmationUrl;
       ctx.res.statusCode = 200;
-      ctx.body = response;
+      ctx.body = confirmationUrl;
     });
+
+  /* 
+  db.invoice.update({ "_id": ObjectId(req.params.id) },
+  { "$inc": { "total": -200 } }, function (err, doc) {
+    if (err) return new Error(err);
+    if (doc.result.n > 0) {
+      console.log(" Invoice updated with Payment info.", doc.result);
+    } else {
+      console.log("Something went wrong while payment info updation.")
+    }
+  });
+  */
+  // Credit Subtraction  
+  router.get('/api/credit/:cost', async (ctx) => {
+    var dateNow = new Date();
+    // var n = d.toISOString()
+    console.log("Middleware params", JSON.stringify(ctx.params)) // works with /:id
+    var responseToUsageRecord = usageRecord.findOneAndUpdate({ shopId: ctx.shopId }, {
+      $push: {
+        record: {
+          "date": dateNow.toISOString(),
+          "used": ctx.params.cost
+        }
+      }, "$inc": { "credit": Math.abs(ctx.params.cost) * -1 }
+    }, {
+      new: true,
+      upsert: true
+    }, function (error, value) {
+      if (error) console.log("Error in usageRecord in credit update Query :", error)
+    });
+    await handleRequest(ctx)
+    ctx.body = `idme: ${ctx.params.cost}`
+  });
 
   router.get("(/_next/static/.*)", handleRequest); // Static content is clear
   router.get("/_next/webpack-hmr", handleRequest); // Webpack content is clear

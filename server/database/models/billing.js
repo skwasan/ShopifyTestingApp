@@ -1,6 +1,6 @@
 import mongoose from 'mongoose'
 const billingSchema = new mongoose.Schema({
-    billingId: String,
+    subscriptionId: String,
     shopId: String,
     shop: String,
     planName: String,

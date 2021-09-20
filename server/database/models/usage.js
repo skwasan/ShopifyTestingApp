@@ -32,8 +32,8 @@
 //         }
 //     }
 // });
-// const UsageRecord = mongoose.model('usageRecord', usageSchema);
-// export default UsageRecord;
+// const usageRecord = mongoose.model('usageRecord', usageSchema);
+// export default usageRecord;
 
 import mongoose from 'mongoose'
 const usageSchema = new mongoose.Schema({
@@ -47,5 +47,5 @@ const usageSchema = new mongoose.Schema({
     record: { type: Array, default: [] },
 
 });
-const UsageRecord = mongoose.model('usageRecord', usageSchema);
-export default UsageRecord;
+const usageRecord = mongoose.model('usageRecord', usageSchema);
+export default usageRecord;
